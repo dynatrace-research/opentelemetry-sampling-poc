@@ -1,0 +1,47 @@
+plugins {
+    id 'java-library'
+    id 'jacoco'
+    id 'com.github.hierynomus.license' version '0.15.0'
+    id 'com.github.sherter.google-java-format' version '0.9'
+}
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    compile group: 'io.grpc', name: 'grpc-okhttp', version: '1.37.1'
+    compile group: 'io.opentelemetry', name: 'opentelemetry-exporter-otlp', version: '1.5.0'
+    compile group: 'io.opentelemetry', name: 'opentelemetry-exporter-logging-otlp', version: '1.5.0'
+    
+    implementation 'com.google.guava:guava:30.1.1-jre'
+    implementation 'io.opentelemetry:opentelemetry-sdk:1.5.0'
+
+    testImplementation group: 'junit', name: 'junit', version: '4.13.2'
+    testImplementation group: 'org.assertj', name: 'assertj-core', version: '3.20.2'
+    testImplementation 'org.mockito:mockito-core:3.12.1'
+    testImplementation group: 'org.hipparchus', name: 'hipparchus-stat', version: '2.0'
+}
+
+license {
+    mapping {
+        java = 'SLASHSTAR_STYLE'
+    }
+    header = rootProject.file('docs/licenses/HEADER.txt')
+    strictCheck = true
+    ext.year = Calendar.getInstance().get(Calendar.YEAR)
+    ext.name = 'Dynatrace LLC'
+}
+
+jacocoTestReport {
+    reports {
+        xml.enabled true
+    }
+}
+
+sourceSets{
+    main
+    test
+}
+
+tasks.test.finalizedBy jacocoTestReport

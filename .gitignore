@@ -1,0 +1,10 @@
+/poc/.gradle/
+/poc/build/
+/poc/gradlew
+/poc/gradlew.bat
+/poc/gradle/wrapper/gradle-wrapper.properties
+/poc/gradle/wrapper/gradle-wrapper.jar
+/poc/bin/
+/poc/.classpath
+/poc/.project
+/poc/.settings/

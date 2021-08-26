@@ -26,10 +26,10 @@
  */
 package com.dynatrace.research.otelsampling.sampling;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.stream.Collectors.toList;
 
 import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.TraceState;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import java.util.Collection;
 import java.util.Collections;
@@ -51,13 +51,6 @@ public final class SamplingUtil {
       Collection<T> spanData, double sampleRateThreshold) {
 
     if (spanData.isEmpty()) return Collections.emptyList();
-
-    // verify that all span data has been collected with the same sampling mode
-    SamplingMode samplingMode = getSamplingMode(spanData.stream().findFirst().get());
-    checkArgument(spanData.stream().allMatch(s -> getSamplingMode(s) == samplingMode));
-
-    // TODO support also other sampling modes
-    checkArgument(samplingMode == SamplingMode.PARENT_LINK);
 
     return spanData.stream()
         .filter(s -> getSamplingRatio(s) > sampleRateThreshold)
@@ -91,15 +84,17 @@ public final class SamplingUtil {
   }
 
   public static double getSamplingRatio(SpanData spanData) {
-    Double v =
-        spanData
-            .getAttributes()
-            .get(AttributeKey.doubleKey(AdvancedTraceIdRatioBasedSampler.SAMPLING_RATIO_KEY));
-    if (v == null) {
-      return Double.NaN;
-    } else {
-      return v;
+    TraceState traceState = spanData.getSpanContext().getTraceState();
+    String pow2ParentSaplingRateAsString =
+        traceState.get(AbstractConsistentSampler.SAMPLING_RATE_EXPONENT_KEY);
+    if (pow2ParentSaplingRateAsString != null) {
+      int parentSamplingRateExponent =
+          Integer.parseInt(pow2ParentSaplingRateAsString); // TODO exception handling
+      if (parentSamplingRateExponent >= 0 && parentSamplingRateExponent <= 63) {
+        return 1. / (1 << (parentSamplingRateExponent - 1));
+      }
     }
+    return Double.NaN;
   }
 
   public static SamplingMode getSamplingMode(SpanData spanData) {

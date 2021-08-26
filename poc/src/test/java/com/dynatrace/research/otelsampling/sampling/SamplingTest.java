@@ -35,6 +35,7 @@ import com.dynatrace.research.otelsampling.tree.Tree;
 import com.dynatrace.research.otelsampling.tree.TreeStructure;
 import com.dynatrace.research.otelsampling.tree.TreeUtil;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
+import java.util.SplittableRandom;
 import java.util.stream.DoubleStream;
 import org.hipparchus.stat.inference.AlternativeHypothesis;
 import org.hipparchus.stat.inference.BinomialTest;
@@ -44,7 +45,7 @@ import org.junit.Test;
 public class SamplingTest {
 
   @Test
-  public void testSimulate() {
+  public void testSimulateAlwaysOnSampler() {
 
     CollectingSpanExporter collector = new CollectingSpanExporter();
 
@@ -52,6 +53,26 @@ public class SamplingTest {
     Tree<Integer> tree = new Tree<>(treeStructure, i -> i);
 
     TraceUtil.simulate(tree, i -> Sampler.alwaysOn(), Object::toString, collector, 0L);
+
+    assertEquals(20, collector.getSpans().size());
+  }
+
+  @Test
+  public void testSimulateConsistentParentRateSampler() {
+
+    SplittableRandom random = new SplittableRandom(0xec27e4d6d167b608L);
+
+    CollectingSpanExporter collector = new CollectingSpanExporter();
+
+    TreeStructure treeStructure = TreeUtil.createBalancedBinaryTree(20);
+    Tree<Integer> tree = new Tree<>(treeStructure, i -> i);
+
+    TraceUtil.simulate(
+        tree,
+        i -> new ConsistentParentRateSampler(random::nextBoolean),
+        Object::toString,
+        collector,
+        0L);
 
     assertEquals(20, collector.getSpans().size());
   }
@@ -94,6 +115,49 @@ public class SamplingTest {
   }
 
   @Test
+  public void testConsistentFixedRateSamplerHomogeneousSamplingRate() {
+
+    SplittableRandom random = new SplittableRandom(0xec27e4d6d167b608L);
+
+    double alpha = 0.01;
+
+    int numCycles = 10000;
+    int numNodes = 20;
+
+    double sampleRate = 0.5;
+
+    int sampledAllCounter = 0;
+
+    TreeStructure treeStructure = TreeUtil.createBalancedBinaryTree(numNodes);
+    Tree<Integer> tree = new Tree<>(treeStructure, i -> i);
+
+    for (int cycleIdx = 0; cycleIdx < numCycles; ++cycleIdx) {
+
+      CollectingSpanExporter collector = new CollectingSpanExporter();
+
+      TraceUtil.simulate(
+          tree,
+          i -> new ConsistentFixedRateSampler(sampleRate, random::nextBoolean),
+          Object::toString,
+          collector,
+          cycleIdx);
+
+      int numberOfSampledSpans = collector.getSpans().size();
+
+      if (numberOfSampledSpans == numNodes) {
+        sampledAllCounter += 1;
+      } else {
+        assertEquals(0, numberOfSampledSpans);
+      }
+    }
+
+    assertFalse(
+        new BinomialTest()
+            .binomialTest(
+                numCycles, sampledAllCounter, sampleRate, AlternativeHypothesis.TWO_SIDED, alpha));
+  }
+
+  @Test
   public void testIdRatioBasedSamplerInhomogeneousSamplingRates() {
 
     int numCycles = 10000;
@@ -115,6 +179,51 @@ public class SamplingTest {
       TraceUtil.simulate(
           tree,
           i -> Sampler.traceIdRatioBased(sampleRates[i]),
+          Object::toString,
+          collector,
+          cycleIdx);
+
+      int numberOfSampledSpans = collector.getSpans().size();
+
+      histogram[numberOfSampledSpans] += 1;
+    }
+    double[] sortedSampleRates =
+        DoubleStream.concat(DoubleStream.of(0, 1), DoubleStream.of(sampleRates)).sorted().toArray();
+
+    double[] expectedFrequencies = new double[numNodes + 1];
+    expectedFrequencies[0] = 1. - sortedSampleRates[numNodes];
+    for (int i = 0; i <= numNodes; ++i) {
+      expectedFrequencies[i] =
+          sortedSampleRates[numNodes + 1 - i] - sortedSampleRates[numNodes - i];
+    }
+
+    assertFalse(new GTest().gTest(expectedFrequencies, histogram, alpha));
+  }
+
+  @Test
+  public void testConsistentFixedRateSamplerInhomogeneousSamplingRates() {
+
+    SplittableRandom random = new SplittableRandom(0xec27e4d6d167b608L);
+
+    int numCycles = 10000;
+
+    int numNodes = 3;
+    double alpha = 0.01;
+
+    TreeStructure treeStructure = TreeUtil.createChain(numNodes);
+    Tree<Integer> tree = new Tree<>(treeStructure, i -> i);
+
+    double[] sampleRates = {0.5, 0.3, 0.7};
+    assertEquals(numNodes, sampleRates.length);
+
+    long[] histogram = new long[numNodes + 1];
+    for (int cycleIdx = 0; cycleIdx < numCycles; ++cycleIdx) {
+
+      CollectingSpanExporter collector = new CollectingSpanExporter();
+
+      TraceUtil.simulate(
+          tree,
+          i -> new ConsistentFixedRateSampler(sampleRates[i], random::nextBoolean),
           Object::toString,
           collector,
           cycleIdx);

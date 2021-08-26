@@ -31,8 +31,7 @@ import static java.util.stream.Collectors.toMap;
 import static org.junit.Assert.assertFalse;
 
 import com.dynatrace.research.otelsampling.exporter.CollectingSpanExporter;
-import com.dynatrace.research.otelsampling.sampling.AdvancedTraceIdRatioBasedSampler;
-import com.dynatrace.research.otelsampling.sampling.SamplingMode;
+import com.dynatrace.research.otelsampling.sampling.ConsistentFixedRateSampler;
 import com.dynatrace.research.otelsampling.simulation.TraceUtil;
 import com.dynatrace.research.otelsampling.tree.Tree;
 import com.dynatrace.research.otelsampling.tree.TreeUtil;
@@ -81,7 +80,7 @@ public class EstimationUtilTest {
       CollectingSpanExporter spanExporter = new CollectingSpanExporter();
       TraceUtil.simulate(
           treeTemplate,
-          i -> AdvancedTraceIdRatioBasedSampler.create(SamplingMode.PARENT_LINK, samplingRates[i]),
+          i -> new ConsistentFixedRateSampler(samplingRates[i], random::nextBoolean),
           Object::toString,
           spanExporter,
           hashSalt);
@@ -124,7 +123,7 @@ public class EstimationUtilTest {
       CollectingSpanExporter spanExporter = new CollectingSpanExporter();
       TraceUtil.simulate(
           treeTemplate,
-          i -> AdvancedTraceIdRatioBasedSampler.create(SamplingMode.PARENT_LINK, samplingRates[i]),
+          i -> new ConsistentFixedRateSampler(samplingRates[i], random::nextBoolean),
           Object::toString,
           spanExporter,
           hashSalt);
@@ -165,7 +164,7 @@ public class EstimationUtilTest {
       CollectingSpanExporter spanExporter = new CollectingSpanExporter();
       TraceUtil.simulate(
           treeTemplate,
-          i -> AdvancedTraceIdRatioBasedSampler.create(SamplingMode.PARENT_LINK, samplingRates[i]),
+          i -> new ConsistentFixedRateSampler(samplingRates[i], random::nextBoolean),
           Object::toString,
           spanExporter,
           hashSalt);

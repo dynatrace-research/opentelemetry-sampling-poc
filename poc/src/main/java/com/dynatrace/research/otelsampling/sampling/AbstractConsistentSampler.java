@@ -47,6 +47,8 @@ public abstract class AbstractConsistentSampler implements Sampler {
   public static final String SAMPLING_GEOMETRIC_RANDOM_VALUE_KEY =
       "sampling-geometric-random-value";
   public static final String SAMPLING_RATE_EXPONENT_KEY = "sampling-rate-exponent";
+  public static final String NUMBER_DROPPED_ANCESTORS_KEY = "number-dropped-ancestors";
+  public static final String SAMPLED_ANCESTOR_SPAN_ID_KEY = "sampled-ancestor-span-id";
 
   protected final BooleanSupplier threadSafeRandomGenerator;
 
@@ -128,10 +130,15 @@ public abstract class AbstractConsistentSampler implements Sampler {
           return parentTraceState.toBuilder()
               .put(SAMPLING_GEOMETRIC_RANDOM_VALUE_KEY, Integer.toString(geometricRandomValue))
               .put(SAMPLING_RATE_EXPONENT_KEY, Integer.toString(samplingRateExponent))
+              .remove(NUMBER_DROPPED_ANCESTORS_KEY)
+              .remove(SAMPLED_ANCESTOR_SPAN_ID_KEY)
               .build();
         }
       };
     } else {
+
+      String parentSpanId = Span.fromContext(parentContext).getSpanContext().getSpanId();
+
       return new SamplingResult() {
 
         @Override
@@ -146,9 +153,23 @@ public abstract class AbstractConsistentSampler implements Sampler {
 
         @Override
         public TraceState getUpdatedTraceState(TraceState parentTraceState) {
+
+          String numberDroppedParentsAsString = parentTraceState.get(NUMBER_DROPPED_ANCESTORS_KEY);
+          long numberDroppedAncestors =
+              (numberDroppedParentsAsString != null)
+                  ? Long.parseLong(numberDroppedParentsAsString)
+                  : 0;
+
+          String sampledAncestorSpanId = parentTraceState.get(SAMPLED_ANCESTOR_SPAN_ID_KEY);
+          if (sampledAncestorSpanId == null) {
+            sampledAncestorSpanId = parentSpanId;
+          }
+
           return parentTraceState.toBuilder()
               .put(SAMPLING_GEOMETRIC_RANDOM_VALUE_KEY, Integer.toString(geometricRandomValue))
               .put(SAMPLING_RATE_EXPONENT_KEY, Integer.toString(samplingRateExponent))
+              .put(SAMPLED_ANCESTOR_SPAN_ID_KEY, sampledAncestorSpanId)
+              .put(NUMBER_DROPPED_ANCESTORS_KEY, Long.toString(numberDroppedAncestors + 1))
               .build();
         }
       };

@@ -56,13 +56,13 @@ public class ParentChildRelationshipCounter implements ScalarQuantityExtractor {
     for (SpanData span : spanData) {
       if (!childSpanMatcher.test(span)) continue;
 
-      SpanData parentSpan = spanIndex.get(SamplingUtil.getParentSpanId(span));
+      SpanData parentSpan = spanIndex.get(SamplingUtil.getAncestorSpanId(span));
       while (parentSpan != null) {
         if (parentSpanMatcher.test(parentSpan)) {
           result += 1;
           break;
         }
-        parentSpan = spanIndex.get(SamplingUtil.getParentSpanId(parentSpan));
+        parentSpan = spanIndex.get(SamplingUtil.getAncestorSpanId(parentSpan));
       }
     }
     return result;

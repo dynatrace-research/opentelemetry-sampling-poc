@@ -26,7 +26,9 @@
  */
 package com.dynatrace.research.otelsampling.simulation;
 
+import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.toMap;
 
 import com.dynatrace.research.otelsampling.sampling.SamplingUtil;
 import com.dynatrace.research.otelsampling.simulation.InstrumentedService.CallContext;
@@ -73,6 +75,11 @@ public final class TraceUtil {
     }
   }
 
+  public static Map<String, SpanData> createSpanDataIndex(
+      Collection<? extends SpanData> spanDataCollection) {
+    return spanDataCollection.stream().collect(toMap(SpanData::getSpanId, identity()));
+  }
+
   // TODO in some cases subtrees could be merged, by adding an unknown common root node
   private static List<Tree<SpanData>> extractTreesHelper(
       Collection<? extends SpanData> spanDataCollection) {
@@ -80,17 +87,15 @@ public final class TraceUtil {
     Preconditions.checkArgument(
         spanDataCollection.stream().map(SpanData::getTraceId).distinct().count() == 1);
 
-    Map<String, SpanData> index =
-        spanDataCollection.stream()
-            .collect(Collectors.toMap(SpanData::getSpanId, Function.identity()));
+    Map<String, SpanData> index = createSpanDataIndex(spanDataCollection);
     Map<String, List<SpanData>> childSpans =
         spanDataCollection.stream()
             .collect(
                 Collectors.groupingBy(
-                    SamplingUtil::getParentSpanId, Collectors.<SpanData>toList()));
+                    SamplingUtil::getAncestorSpanId, Collectors.<SpanData>toList()));
     Collection<SpanData> rootSpans =
         spanDataCollection.stream()
-            .filter(s -> !index.containsKey(SamplingUtil.getParentSpanId(s)))
+            .filter(s -> !index.containsKey(SamplingUtil.getAncestorSpanId(s)))
             .collect(Collectors.<SpanData>toList());
 
     List<Tree<SpanData>> result = new ArrayList<>(rootSpans.size());
@@ -105,8 +110,8 @@ public final class TraceUtil {
           new ArrayDeque<>(childSpans.getOrDefault(rootSpan.getSpanId(), Collections.emptyList()));
       while (!buffer.isEmpty()) {
         SpanData s = buffer.remove();
-        builder.addNode(spanToIndex.get(SamplingUtil.getParentSpanId(s)));
-        for (int i = 0; i < SamplingUtil.getParentDistance(s); ++i) {
+        builder.addNode(spanToIndex.get(SamplingUtil.getAncestorSpanId(s)));
+        for (int i = 0; i < SamplingUtil.getNumberDroppedAncestors(s); ++i) {
           builder.addNode(spanCounter);
           spanCounter += 1;
         }

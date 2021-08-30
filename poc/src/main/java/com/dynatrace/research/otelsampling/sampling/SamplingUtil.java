@@ -26,13 +26,26 @@
  */
 package com.dynatrace.research.otelsampling.sampling;
 
+import static com.dynatrace.research.otelsampling.sampling.AbstractConsistentSampler.NUMBER_DROPPED_ANCESTORS_KEY;
+import static com.dynatrace.research.otelsampling.sampling.AbstractConsistentSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY;
+import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
+import com.dynatrace.research.otelsampling.simulation.TraceUtil;
 import io.opentelemetry.api.common.AttributeKey;
-import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.trace.*;
+import io.opentelemetry.sdk.common.InstrumentationLibraryInfo;
+import io.opentelemetry.sdk.resources.Resource;
+import io.opentelemetry.sdk.trace.data.EventData;
+import io.opentelemetry.sdk.trace.data.LinkData;
 import io.opentelemetry.sdk.trace.data.SpanData;
+import io.opentelemetry.sdk.trace.data.StatusData;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
 
 public final class SamplingUtil {
 
@@ -44,25 +57,43 @@ public final class SamplingUtil {
    *
    * @param spanData a collection of span data
    * @param sampleRateThreshold the sample rate threshold
-   * @param <T>
    * @return the new down-sampled collection of span data
    */
-  public static final <T extends SpanData> Collection<T> downSample(
-      Collection<T> spanData, double sampleRateThreshold) {
+  public static Collection<SpanData> downSample(
+      Collection<SpanData> spanData, double sampleRateThreshold) {
 
     if (spanData.isEmpty()) return Collections.emptyList();
 
+    Predicate<SpanData> predicate = s -> getSamplingRatio(s) > sampleRateThreshold;
+
+    Map<String, SpanData> index = TraceUtil.createSpanDataIndex(spanData);
+
     return spanData.stream()
-        .filter(s -> getSamplingRatio(s) > sampleRateThreshold)
+        .filter(predicate)
+        .map(s -> updateAncestorInformation(s, index, predicate))
         .collect(toList());
   }
 
-  public static int getParentDistance(SpanData spanData) {
+  private static SpanData updateAncestorInformation(
+      SpanData s, Map<String, SpanData> index, Predicate<SpanData> predicate) {
+    SpanData newAncestorSpan = index.get(getAncestorSpanId(s));
+    int newNumberDroppedAncestors = getNumberDroppedAncestors(s);
+    while (newAncestorSpan != null && !predicate.test(newAncestorSpan)) {
+      newNumberDroppedAncestors += getNumberDroppedAncestors(newAncestorSpan);
+      newAncestorSpan = index.get(getAncestorSpanId(newAncestorSpan));
+    }
+    return SpanDataWithModifiedAncestorData.create(
+        s,
+        (newAncestorSpan != null) ? newAncestorSpan.getSpanId() : SpanId.getInvalid(),
+        newNumberDroppedAncestors);
+  }
+
+  public static int getNumberDroppedAncestors(SpanData spanData) {
     String v =
         spanData
             .getParentSpanContext()
             .getTraceState()
-            .get(AdvancedTraceIdRatioBasedSampler.NUMBER_DROPPED_ANCESTORS_KEY);
+            .get(AbstractConsistentSampler.NUMBER_DROPPED_ANCESTORS_KEY);
     if (v == null) {
       return 0;
     } else {
@@ -70,12 +101,12 @@ public final class SamplingUtil {
     }
   }
 
-  public static String getParentSpanId(SpanData spanData) {
+  public static String getAncestorSpanId(SpanData spanData) {
     String v =
         spanData
             .getParentSpanContext()
             .getTraceState()
-            .get(AdvancedTraceIdRatioBasedSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY);
+            .get(AbstractConsistentSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY);
     if (v == null) {
       return spanData.getParentSpanId();
     } else {
@@ -106,6 +137,172 @@ public final class SamplingUtil {
       return null;
     } else {
       return SamplingMode.valueOf(s);
+    }
+  }
+
+  private static final class SpanDataWithModifiedAncestorData implements SpanData {
+
+    private final SpanData delegate;
+    private final SpanContext newSpanContext;
+
+    private SpanDataWithModifiedAncestorData(
+        SpanData spanData, String newAncestorSpanId, int newNumDroppedAncestors) {
+      this.delegate = requireNonNull(spanData);
+
+      SpanContext parentSpanContext = spanData.getParentSpanContext();
+
+      TraceStateBuilder builder = parentSpanContext.getTraceState().toBuilder();
+      if (!newAncestorSpanId.equals(parentSpanContext.getSpanId())) {
+        builder.put(SAMPLED_ANCESTOR_SPAN_ID_KEY, newAncestorSpanId);
+      } else {
+        builder.remove(SAMPLED_ANCESTOR_SPAN_ID_KEY);
+      }
+      if (newNumDroppedAncestors > 0) {
+        builder.put(NUMBER_DROPPED_ANCESTORS_KEY, Integer.toString(newNumDroppedAncestors));
+      } else {
+        builder.remove(NUMBER_DROPPED_ANCESTORS_KEY);
+      }
+      TraceState traceState = builder.build();
+      newSpanContext =
+          new SpanContext() {
+            @Override
+            public String getTraceId() {
+              return parentSpanContext.getTraceId();
+            }
+
+            @Override
+            public String getSpanId() {
+              return parentSpanContext.getSpanId();
+            }
+
+            @Override
+            public TraceFlags getTraceFlags() {
+              return parentSpanContext.getTraceFlags();
+            }
+
+            @Override
+            public TraceState getTraceState() {
+              return traceState;
+            }
+
+            @Override
+            public boolean isRemote() {
+              return parentSpanContext.isRemote();
+            }
+          };
+    }
+
+    private static SpanData create(
+        SpanData spanData, String newAncestorSpanId, int newNumDroppedAncestors) {
+      requireNonNull(spanData);
+      requireNonNull(newAncestorSpanId);
+      if (spanData.getParentSpanId().equals(SpanId.getInvalid())) {
+        return spanData;
+      }
+      if (spanData instanceof SpanDataWithModifiedAncestorData) {
+        return new SpanDataWithModifiedAncestorData(
+            ((SpanDataWithModifiedAncestorData) spanData).delegate,
+            newAncestorSpanId,
+            newNumDroppedAncestors);
+      } else {
+        return new SpanDataWithModifiedAncestorData(
+            spanData, newAncestorSpanId, newNumDroppedAncestors);
+      }
+    }
+
+    @Override
+    public String getName() {
+      return delegate.getName();
+    }
+
+    @Override
+    public SpanKind getKind() {
+      return delegate.getKind();
+    }
+
+    @Override
+    public SpanContext getSpanContext() {
+      return delegate.getSpanContext();
+    }
+
+    @Override
+    public String getTraceId() {
+      return delegate.getTraceId();
+    }
+
+    @Override
+    public String getSpanId() {
+      return delegate.getSpanId();
+    }
+
+    @Override
+    public SpanContext getParentSpanContext() {
+      return newSpanContext;
+    }
+
+    @Override
+    public String getParentSpanId() {
+      return delegate.getParentSpanId();
+    }
+
+    @Override
+    public StatusData getStatus() {
+      return delegate.getStatus();
+    }
+
+    @Override
+    public long getStartEpochNanos() {
+      return delegate.getStartEpochNanos();
+    }
+
+    @Override
+    public Attributes getAttributes() {
+      return delegate.getAttributes();
+    }
+
+    @Override
+    public List<EventData> getEvents() {
+      return delegate.getEvents();
+    }
+
+    @Override
+    public List<LinkData> getLinks() {
+      return delegate.getLinks();
+    }
+
+    @Override
+    public long getEndEpochNanos() {
+      return delegate.getEndEpochNanos();
+    }
+
+    @Override
+    public boolean hasEnded() {
+      return delegate.hasEnded();
+    }
+
+    @Override
+    public int getTotalRecordedEvents() {
+      return delegate.getTotalRecordedEvents();
+    }
+
+    @Override
+    public int getTotalRecordedLinks() {
+      return delegate.getTotalRecordedLinks();
+    }
+
+    @Override
+    public int getTotalAttributeCount() {
+      return delegate.getTotalAttributeCount();
+    }
+
+    @Override
+    public InstrumentationLibraryInfo getInstrumentationLibraryInfo() {
+      return delegate.getInstrumentationLibraryInfo();
+    }
+
+    @Override
+    public Resource getResource() {
+      return delegate.getResource();
     }
   }
 }

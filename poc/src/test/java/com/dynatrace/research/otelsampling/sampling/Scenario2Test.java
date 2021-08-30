@@ -57,7 +57,7 @@ public class Scenario2Test {
         tree,
         i ->
             AdvancedTraceIdRatioBasedSampler.create(
-                SamplingMode.PARENT_LINK, (i == 0 || i == 3) ? 0. : 1.),
+                RecordingMode.PARENT_LINK, (i == 0 || i == 3) ? 0. : 1.),
         Object::toString,
         collector,
         0);
@@ -112,7 +112,7 @@ public class Scenario2Test {
         tree,
         i ->
             AdvancedTraceIdRatioBasedSampler.create(
-                SamplingMode.ANCESTOR_LINK, (i == 0 || i == 3) ? 0. : 1.),
+                RecordingMode.ANCESTOR_LINK, (i == 0 || i == 3) ? 0. : 1.),
         Object::toString,
         collector,
         0);
@@ -162,7 +162,7 @@ public class Scenario2Test {
         tree,
         i ->
             AdvancedTraceIdRatioBasedSampler.create(
-                SamplingMode.ANCESTOR_LINK_AND_DISTANCE, (i == 0 || i == 3) ? 0. : 1.),
+                RecordingMode.ANCESTOR_LINK_AND_DISTANCE, (i == 0 || i == 3) ? 0. : 1.),
         Object::toString,
         collector,
         0);

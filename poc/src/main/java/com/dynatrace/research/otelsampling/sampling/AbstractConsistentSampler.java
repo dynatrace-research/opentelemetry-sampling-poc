@@ -30,6 +30,7 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.api.trace.TraceStateBuilder;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.trace.data.LinkData;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
@@ -50,6 +51,10 @@ public abstract class AbstractConsistentSampler implements Sampler {
 
   protected boolean generateRandomBit() {
     return ThreadLocalRandom.current().nextBoolean();
+  }
+
+  protected RecordingMode getRecordingMode() {
+    return RecordingMode.ANCESTOR_LINK_AND_DISTANCE;
   }
 
   // returns a random value from a geometric distribution with a success probability of 0.5 and
@@ -106,6 +111,8 @@ public abstract class AbstractConsistentSampler implements Sampler {
     final int samplingRateExponent =
         getSamplingRateExponent(parentContext, traceId, name, spanKind, attributes, parentLinks);
 
+    RecordingMode recordingMode = getRecordingMode();
+
     boolean samplingDecision = geometricRandomValue >= samplingRateExponent;
 
     if (samplingDecision) {
@@ -123,12 +130,12 @@ public abstract class AbstractConsistentSampler implements Sampler {
 
         @Override
         public TraceState getUpdatedTraceState(TraceState parentTraceState) {
-          return parentTraceState.toBuilder()
-              .put(SAMPLING_GEOMETRIC_RANDOM_VALUE_KEY, Integer.toString(geometricRandomValue))
-              .put(SAMPLING_RATE_EXPONENT_KEY, Integer.toString(samplingRateExponent))
-              .remove(NUMBER_DROPPED_ANCESTORS_KEY)
-              .remove(SAMPLED_ANCESTOR_SPAN_ID_KEY)
-              .build();
+          TraceStateBuilder builder = parentTraceState.toBuilder();
+          builder.put(SAMPLING_GEOMETRIC_RANDOM_VALUE_KEY, Integer.toString(geometricRandomValue));
+          builder.put(SAMPLING_RATE_EXPONENT_KEY, Integer.toString(samplingRateExponent));
+          builder.remove(NUMBER_DROPPED_ANCESTORS_KEY);
+          builder.remove(SAMPLED_ANCESTOR_SPAN_ID_KEY);
+          return builder.build();
         }
       };
     } else {
@@ -150,23 +157,33 @@ public abstract class AbstractConsistentSampler implements Sampler {
         @Override
         public TraceState getUpdatedTraceState(TraceState parentTraceState) {
 
-          String numberDroppedParentsAsString = parentTraceState.get(NUMBER_DROPPED_ANCESTORS_KEY);
-          long numberDroppedAncestors =
-              (numberDroppedParentsAsString != null)
-                  ? Long.parseLong(numberDroppedParentsAsString)
-                  : 0;
+          TraceStateBuilder builder = parentTraceState.toBuilder();
+          builder.put(SAMPLING_GEOMETRIC_RANDOM_VALUE_KEY, Integer.toString(geometricRandomValue));
+          builder.put(SAMPLING_RATE_EXPONENT_KEY, Integer.toString(samplingRateExponent));
 
-          String sampledAncestorSpanId = parentTraceState.get(SAMPLED_ANCESTOR_SPAN_ID_KEY);
-          if (sampledAncestorSpanId == null) {
-            sampledAncestorSpanId = parentSpanId;
+          if (recordingMode.collectAncestorDistance()) {
+            String numberDroppedParentsAsString =
+                parentTraceState.get(NUMBER_DROPPED_ANCESTORS_KEY);
+            long numberDroppedAncestors =
+                (numberDroppedParentsAsString != null)
+                    ? Long.parseLong(numberDroppedParentsAsString)
+                    : 0;
+            builder.put(NUMBER_DROPPED_ANCESTORS_KEY, Long.toString(numberDroppedAncestors + 1));
+          } else {
+            builder.remove(NUMBER_DROPPED_ANCESTORS_KEY);
           }
 
-          return parentTraceState.toBuilder()
-              .put(SAMPLING_GEOMETRIC_RANDOM_VALUE_KEY, Integer.toString(geometricRandomValue))
-              .put(SAMPLING_RATE_EXPONENT_KEY, Integer.toString(samplingRateExponent))
-              .put(SAMPLED_ANCESTOR_SPAN_ID_KEY, sampledAncestorSpanId)
-              .put(NUMBER_DROPPED_ANCESTORS_KEY, Long.toString(numberDroppedAncestors + 1))
-              .build();
+          if (recordingMode.collectAncestorLink()) {
+            String sampledAncestorSpanId = parentTraceState.get(SAMPLED_ANCESTOR_SPAN_ID_KEY);
+            if (sampledAncestorSpanId == null) {
+              sampledAncestorSpanId = parentSpanId;
+            }
+            builder.put(SAMPLED_ANCESTOR_SPAN_ID_KEY, sampledAncestorSpanId);
+          } else {
+            builder.remove(SAMPLED_ANCESTOR_SPAN_ID_KEY);
+          }
+
+          return builder.build();
         }
       };
     }

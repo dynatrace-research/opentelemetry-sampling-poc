@@ -49,7 +49,7 @@ public final class AdvancedTraceIdRatioBasedSampler implements Sampler {
     private final long idUpperBound;
     private final Attributes attributes;
 
-    private RatioSpecificData(double ratio, SamplingMode mode) {
+    private RatioSpecificData(double ratio, RecordingMode mode) {
       if (ratio < 0.0 || ratio > 1.0) {
         throw new IllegalArgumentException("ratio must be in range [0.0, 1.0]");
       }
@@ -82,22 +82,22 @@ public final class AdvancedTraceIdRatioBasedSampler implements Sampler {
 
   private volatile RatioSpecificData ratioSpecificData;
 
-  private final SamplingMode mode;
+  private final RecordingMode mode;
 
   public static final String NUMBER_DROPPED_ANCESTORS_KEY = "number-dropped-ancestors";
   public static final String SAMPLED_ANCESTOR_SPAN_ID_KEY = "sampled-ancestor-span-id";
   public static final String SAMPLING_RATIO_KEY = "sampling-ratio";
   public static final String SAMPLING_MODE = "sampling-mode";
 
-  public static AdvancedTraceIdRatioBasedSampler create(SamplingMode mode) {
+  public static AdvancedTraceIdRatioBasedSampler create(RecordingMode mode) {
     return new AdvancedTraceIdRatioBasedSampler(mode, 1.0);
   }
 
-  public static AdvancedTraceIdRatioBasedSampler create(SamplingMode mode, double ratio) {
+  public static AdvancedTraceIdRatioBasedSampler create(RecordingMode mode, double ratio) {
     return new AdvancedTraceIdRatioBasedSampler(mode, ratio);
   }
 
-  private AdvancedTraceIdRatioBasedSampler(SamplingMode mode, double ratio) {
+  private AdvancedTraceIdRatioBasedSampler(RecordingMode mode, double ratio) {
     this.mode = mode;
     this.ratioSpecificData = new RatioSpecificData(ratio, mode);
   }

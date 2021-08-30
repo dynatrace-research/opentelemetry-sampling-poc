@@ -76,7 +76,7 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
     double alpha = 0.01;
     double[] ratios = {0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0};
 
-    for (SamplingMode mode : SamplingMode.values()) {
+    for (RecordingMode mode : RecordingMode.values()) {
 
       DeterministicIdGenerator idGenerator = new DeterministicIdGenerator(0L);
       AdvancedTraceIdRatioBasedSampler sampler = AdvancedTraceIdRatioBasedSampler.create(mode);
@@ -111,7 +111,7 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
   @Test
   public void testParentSampledAndChildSampledAncestorLinkAndDistance() {
 
-    for (SamplingMode mode : SamplingMode.values()) {
+    for (RecordingMode mode : RecordingMode.values()) {
 
       AdvancedTraceIdRatioBasedSampler sampler = AdvancedTraceIdRatioBasedSampler.create(mode);
 
@@ -137,7 +137,7 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
           0d);
       assertEquals(
           mode,
-          SamplingMode.valueOf(
+          RecordingMode.valueOf(
               samplingResult
                   .getAttributes()
                   .get(AttributeKey.stringKey(AdvancedTraceIdRatioBasedSampler.SAMPLING_MODE))));
@@ -151,7 +151,7 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
   @Test
   public void testParentSampledAndChildNotSampled() {
 
-    for (SamplingMode mode : SamplingMode.values()) {
+    for (RecordingMode mode : RecordingMode.values()) {
 
       AdvancedTraceIdRatioBasedSampler sampler = AdvancedTraceIdRatioBasedSampler.create(mode);
 
@@ -207,7 +207,7 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
   @Test
   public void testParentNotSampledAndChildSampled() {
 
-    for (SamplingMode mode : SamplingMode.values()) {
+    for (RecordingMode mode : RecordingMode.values()) {
 
       AdvancedTraceIdRatioBasedSampler sampler = AdvancedTraceIdRatioBasedSampler.create(mode);
 
@@ -244,7 +244,7 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
   @Test
   public void testParentNotSampledAndChildNotSampled() {
 
-    for (SamplingMode mode : SamplingMode.values()) {
+    for (RecordingMode mode : RecordingMode.values()) {
 
       AdvancedTraceIdRatioBasedSampler sampler = AdvancedTraceIdRatioBasedSampler.create(mode);
 
@@ -257,7 +257,6 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
               .put(AdvancedTraceIdRatioBasedSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY, grandParentSpanId)
               .build();
 
-      parentContext = Mockito.mock(Context.class);
       parentContext =
           new Context() {
 

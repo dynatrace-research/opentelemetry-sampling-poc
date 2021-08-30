@@ -26,7 +26,7 @@
  */
 package com.dynatrace.research.otelsampling.sampling;
 
-public enum SamplingMode {
+public enum RecordingMode {
   PARENT_LINK {
     @Override
     public boolean collectAncestorLink() {

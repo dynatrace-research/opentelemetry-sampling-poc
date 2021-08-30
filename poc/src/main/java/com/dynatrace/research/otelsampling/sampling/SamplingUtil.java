@@ -128,7 +128,7 @@ public final class SamplingUtil {
     return Double.NaN;
   }
 
-  public static SamplingMode getSamplingMode(SpanData spanData) {
+  public static RecordingMode getSamplingMode(SpanData spanData) {
     String s =
         spanData
             .getAttributes()
@@ -136,7 +136,7 @@ public final class SamplingUtil {
     if (s == null) {
       return null;
     } else {
-      return SamplingMode.valueOf(s);
+      return RecordingMode.valueOf(s);
     }
   }
 

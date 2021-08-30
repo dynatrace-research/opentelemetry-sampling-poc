@@ -69,7 +69,13 @@ public class SamplingTest {
 
     TraceUtil.simulate(
         tree,
-        i -> new ConsistentParentRateSampler(random::nextBoolean),
+        i ->
+            new ConsistentParentRateSampler() {
+              @Override
+              protected boolean generateRandomBit() {
+                return random.nextBoolean();
+              }
+            },
         Object::toString,
         collector,
         0L);
@@ -137,7 +143,13 @@ public class SamplingTest {
 
       TraceUtil.simulate(
           tree,
-          i -> new ConsistentFixedRateSampler(sampleRate, random::nextBoolean),
+          i ->
+              new ConsistentFixedRateSampler(sampleRate) {
+                @Override
+                protected boolean generateRandomBit() {
+                  return random.nextBoolean();
+                }
+              },
           Object::toString,
           collector,
           cycleIdx);
@@ -223,7 +235,13 @@ public class SamplingTest {
 
       TraceUtil.simulate(
           tree,
-          i -> new ConsistentFixedRateSampler(sampleRates[i], random::nextBoolean),
+          i ->
+              new ConsistentFixedRateSampler(sampleRates[i]) {
+                @Override
+                protected boolean generateRandomBit() {
+                  return random.nextBoolean();
+                }
+              },
           Object::toString,
           collector,
           cycleIdx);

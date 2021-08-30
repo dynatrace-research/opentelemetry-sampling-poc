@@ -31,7 +31,6 @@ import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.trace.data.LinkData;
 import java.util.List;
-import java.util.function.BooleanSupplier;
 
 public class ConsistentFixedRateSampler extends AbstractConsistentSampler {
 
@@ -40,9 +39,7 @@ public class ConsistentFixedRateSampler extends AbstractConsistentSampler {
   private final double probabilityToUseLowerBoundExponent;
   private final double samplingRate;
 
-  public ConsistentFixedRateSampler(
-      double samplingRate, BooleanSupplier threadSafeRandomGenerator) {
-    super(threadSafeRandomGenerator);
+  public ConsistentFixedRateSampler(double samplingRate) {
     if (samplingRate < 0. || samplingRate > 1.) {
       throw new IllegalArgumentException("Sampling rate must be in the range [0,1]!");
     }
@@ -87,7 +84,7 @@ public class ConsistentFixedRateSampler extends AbstractConsistentSampler {
       if (successProbability == 0) return false;
       if (successProbability == 1) return true;
       boolean b = successProbability > 0.5;
-      if (threadSafeRandomGenerator.getAsBoolean()) return b;
+      if (generateRandomBit()) return b;
       successProbability += successProbability;
       if (b) successProbability -= 1;
     }

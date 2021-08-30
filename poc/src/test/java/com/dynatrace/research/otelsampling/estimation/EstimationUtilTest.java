@@ -80,7 +80,13 @@ public class EstimationUtilTest {
       CollectingSpanExporter spanExporter = new CollectingSpanExporter();
       TraceUtil.simulate(
           treeTemplate,
-          i -> new ConsistentFixedRateSampler(samplingRates[i], random::nextBoolean),
+          i ->
+              new ConsistentFixedRateSampler(samplingRates[i]) {
+                @Override
+                protected boolean generateRandomBit() {
+                  return random.nextBoolean();
+                }
+              },
           Object::toString,
           spanExporter,
           hashSalt);
@@ -123,7 +129,13 @@ public class EstimationUtilTest {
       CollectingSpanExporter spanExporter = new CollectingSpanExporter();
       TraceUtil.simulate(
           treeTemplate,
-          i -> new ConsistentFixedRateSampler(samplingRates[i], random::nextBoolean),
+          i ->
+              new ConsistentFixedRateSampler(samplingRates[i]) {
+                @Override
+                protected boolean generateRandomBit() {
+                  return random.nextBoolean();
+                }
+              },
           Object::toString,
           spanExporter,
           hashSalt);
@@ -164,7 +176,13 @@ public class EstimationUtilTest {
       CollectingSpanExporter spanExporter = new CollectingSpanExporter();
       TraceUtil.simulate(
           treeTemplate,
-          i -> new ConsistentFixedRateSampler(samplingRates[i], random::nextBoolean),
+          i ->
+              new ConsistentFixedRateSampler(samplingRates[i]) {
+                @Override
+                protected boolean generateRandomBit() {
+                  return random.nextBoolean();
+                }
+              },
           Object::toString,
           spanExporter,
           hashSalt);

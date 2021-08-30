@@ -31,13 +31,8 @@ import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.trace.data.LinkData;
 import java.util.List;
-import java.util.function.BooleanSupplier;
 
 public class ConsistentParentRateSampler extends AbstractConsistentSampler {
-
-  public ConsistentParentRateSampler(BooleanSupplier threadSafeRandomGenerator) {
-    super(threadSafeRandomGenerator);
-  }
 
   @Override
   protected int getSamplingRateExponent(

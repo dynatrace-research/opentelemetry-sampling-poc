@@ -26,8 +26,6 @@
  */
 package com.dynatrace.research.otelsampling.sampling;
 
-import static java.util.Objects.requireNonNull;
-
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
@@ -38,7 +36,7 @@ import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.sdk.trace.samplers.SamplingDecision;
 import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 import java.util.*;
-import java.util.function.BooleanSupplier;
+import java.util.concurrent.ThreadLocalRandom;
 
 public abstract class AbstractConsistentSampler implements Sampler {
 
@@ -50,10 +48,8 @@ public abstract class AbstractConsistentSampler implements Sampler {
   public static final String NUMBER_DROPPED_ANCESTORS_KEY = "number-dropped-ancestors";
   public static final String SAMPLED_ANCESTOR_SPAN_ID_KEY = "sampled-ancestor-span-id";
 
-  protected final BooleanSupplier threadSafeRandomGenerator;
-
-  public AbstractConsistentSampler(BooleanSupplier threadSafeRandomGenerator) {
-    this.threadSafeRandomGenerator = requireNonNull(threadSafeRandomGenerator);
+  protected boolean generateRandomBit() {
+    return ThreadLocalRandom.current().nextBoolean();
   }
 
   // returns a random value from a geometric distribution with a success probability of 0.5 and
@@ -61,7 +57,7 @@ public abstract class AbstractConsistentSampler implements Sampler {
   // clipped at 62
   private int generateGeometricRandomValue() {
     int count = 1;
-    while (count < 62 && threadSafeRandomGenerator.getAsBoolean()) {
+    while (count < 62 && generateRandomBit()) {
       count += 1;
     }
     return count;

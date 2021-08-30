@@ -32,7 +32,6 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
 import com.dynatrace.research.otelsampling.simulation.TraceUtil;
-import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.*;
 import io.opentelemetry.sdk.common.InstrumentationLibraryInfo;
@@ -126,18 +125,6 @@ public final class SamplingUtil {
       }
     }
     return Double.NaN;
-  }
-
-  public static RecordingMode getSamplingMode(SpanData spanData) {
-    String s =
-        spanData
-            .getAttributes()
-            .get(AttributeKey.stringKey(AdvancedTraceIdRatioBasedSampler.SAMPLING_MODE));
-    if (s == null) {
-      return null;
-    } else {
-      return RecordingMode.valueOf(s);
-    }
   }
 
   private static final class SpanDataWithModifiedAncestorData implements SpanData {

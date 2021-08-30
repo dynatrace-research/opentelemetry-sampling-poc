@@ -30,15 +30,14 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.dynatrace.research.otelsampling.simulation.DeterministicIdGenerator;
-import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.*;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.ContextKey;
 import io.opentelemetry.sdk.trace.data.LinkData;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.sdk.trace.samplers.SamplingDecision;
 import io.opentelemetry.sdk.trace.samplers.SamplingResult;
 import java.util.Collections;
@@ -49,7 +48,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-public class AdvancedTraceIdRatioBasedSamplerTest {
+public class ConsistentFixedRateSamplerTest {
 
   private Context parentContext;
   private String traceId;
@@ -74,30 +73,27 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
 
     int numCycles = 10000;
     double alpha = 0.01;
-    double[] ratios = {0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0};
+    double[] ratios = {1, 0.5, 0.25, 0.125, 0.0};
 
     for (RecordingMode mode : RecordingMode.values()) {
 
       DeterministicIdGenerator idGenerator = new DeterministicIdGenerator(0L);
-      AdvancedTraceIdRatioBasedSampler sampler = AdvancedTraceIdRatioBasedSampler.create(mode);
 
       for (double ratio : ratios) {
+        Sampler sampler =
+            new ConsistentFixedRateSampler(ratio) {
+              @Override
+              protected RecordingMode getRecordingMode() {
+                return mode;
+              }
+            };
         int recordCounter = 0;
-        sampler.setRatio(ratio);
         for (long i = 0; i < numCycles; ++i) {
           traceId = idGenerator.generateTraceId();
           SamplingResult samplingResult =
               sampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
           if (samplingResult.getDecision() == SamplingDecision.RECORD_AND_SAMPLE) {
             recordCounter += 1;
-            assertEquals(
-                ratio,
-                samplingResult
-                    .getAttributes()
-                    .get(
-                        AttributeKey.doubleKey(
-                            AdvancedTraceIdRatioBasedSampler.SAMPLING_RATIO_KEY)),
-                0d);
           }
         }
         assertFalse(
@@ -113,38 +109,31 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
 
     for (RecordingMode mode : RecordingMode.values()) {
 
-      AdvancedTraceIdRatioBasedSampler sampler = AdvancedTraceIdRatioBasedSampler.create(mode);
+      Sampler sampler =
+          new ConsistentFixedRateSampler(1.) {
+            @Override
+            protected RecordingMode getRecordingMode() {
+              return mode;
+            }
+          };
 
       TraceState parentTraceState = TraceState.builder().build();
       String parentSpanId = "0123456789abcdef";
 
       parentContext = Mockito.mock(Context.class);
 
-      sampler.setRatio(1);
-
       SamplingResult samplingResult =
           sampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
 
       TraceState traceState = samplingResult.getUpdatedTraceState(parentTraceState);
 
-      verifyNoInteractions(parentContext);
       assertEquals(SamplingDecision.RECORD_AND_SAMPLE, samplingResult.getDecision());
       assertEquals(
           1,
-          samplingResult
-              .getAttributes()
-              .get(AttributeKey.doubleKey(AdvancedTraceIdRatioBasedSampler.SAMPLING_RATIO_KEY)),
-          0d);
-      assertEquals(
-          mode,
-          RecordingMode.valueOf(
-              samplingResult
-                  .getAttributes()
-                  .get(AttributeKey.stringKey(AdvancedTraceIdRatioBasedSampler.SAMPLING_MODE))));
-      assertNull(traceState.get(AdvancedTraceIdRatioBasedSampler.NUMBER_DROPPED_ANCESTORS_KEY));
+          Integer.parseInt(traceState.get(AbstractConsistentSampler.SAMPLING_RATE_EXPONENT_KEY)));
+      assertNull(traceState.get(AbstractConsistentSampler.NUMBER_DROPPED_ANCESTORS_KEY));
       assertNull(
-          parentSpanId,
-          traceState.get(AdvancedTraceIdRatioBasedSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY));
+          parentSpanId, traceState.get(AbstractConsistentSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY));
     }
   }
 
@@ -153,7 +142,13 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
 
     for (RecordingMode mode : RecordingMode.values()) {
 
-      AdvancedTraceIdRatioBasedSampler sampler = AdvancedTraceIdRatioBasedSampler.create(mode);
+      Sampler sampler =
+          new ConsistentFixedRateSampler(0.) {
+            @Override
+            protected RecordingMode getRecordingMode() {
+              return mode;
+            }
+          };
 
       TraceState parentTraceState = TraceState.builder().build();
       String parentSpanId = "0123456789abcdef";
@@ -184,8 +179,6 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
             }
           };
 
-      sampler.setRatio(0);
-
       SamplingResult samplingResult =
           sampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
 
@@ -194,13 +187,11 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
       assertEquals(SamplingDecision.DROP, samplingResult.getDecision());
 
       if (mode.collectAncestorDistance()) {
-        assertEquals(
-            "1", traceState.get(AdvancedTraceIdRatioBasedSampler.NUMBER_DROPPED_ANCESTORS_KEY));
+        assertEquals("1", traceState.get(AbstractConsistentSampler.NUMBER_DROPPED_ANCESTORS_KEY));
       }
       if (mode.collectAncestorLink())
         assertEquals(
-            parentSpanId,
-            traceState.get(AdvancedTraceIdRatioBasedSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY));
+            parentSpanId, traceState.get(AbstractConsistentSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY));
     }
   }
 
@@ -209,35 +200,35 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
 
     for (RecordingMode mode : RecordingMode.values()) {
 
-      AdvancedTraceIdRatioBasedSampler sampler = AdvancedTraceIdRatioBasedSampler.create(mode);
+      Sampler sampler =
+          new ConsistentFixedRateSampler(1.) {
+            @Override
+            protected RecordingMode getRecordingMode() {
+              return mode;
+            }
+          };
 
       String grandParentSpanId = "fedcba9876543210";
 
       TraceState parentTraceState =
           TraceState.builder()
-              .put(AdvancedTraceIdRatioBasedSampler.NUMBER_DROPPED_ANCESTORS_KEY, "12")
-              .put(AdvancedTraceIdRatioBasedSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY, grandParentSpanId)
+              .put(AbstractConsistentSampler.NUMBER_DROPPED_ANCESTORS_KEY, "12")
+              .put(AbstractConsistentSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY, grandParentSpanId)
               .build();
 
       parentContext = Mockito.mock(Context.class);
-
-      sampler.setRatio(1);
 
       SamplingResult samplingResult =
           sampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
 
       TraceState traceState = samplingResult.getUpdatedTraceState(parentTraceState);
 
-      verifyNoInteractions(parentContext);
       assertEquals(SamplingDecision.RECORD_AND_SAMPLE, samplingResult.getDecision());
       assertEquals(
           1,
-          samplingResult
-              .getAttributes()
-              .get(AttributeKey.doubleKey(AdvancedTraceIdRatioBasedSampler.SAMPLING_RATIO_KEY)),
-          0d);
-      assertNull(traceState.get(AdvancedTraceIdRatioBasedSampler.NUMBER_DROPPED_ANCESTORS_KEY));
-      assertNull(traceState.get(AdvancedTraceIdRatioBasedSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY));
+          Integer.parseInt(traceState.get(AbstractConsistentSampler.SAMPLING_RATE_EXPONENT_KEY)));
+      assertNull(traceState.get(AbstractConsistentSampler.NUMBER_DROPPED_ANCESTORS_KEY));
+      assertNull(traceState.get(AbstractConsistentSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY));
     }
   }
 
@@ -246,15 +237,21 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
 
     for (RecordingMode mode : RecordingMode.values()) {
 
-      AdvancedTraceIdRatioBasedSampler sampler = AdvancedTraceIdRatioBasedSampler.create(mode);
+      Sampler sampler =
+          new ConsistentFixedRateSampler(0.) {
+            @Override
+            protected RecordingMode getRecordingMode() {
+              return mode;
+            }
+          };
 
       String grandParentSpanId = "fedcba9876543210";
       String parentSpanId = "0123456789abcdef";
 
       TraceState parentTraceState =
           TraceState.builder()
-              .put(AdvancedTraceIdRatioBasedSampler.NUMBER_DROPPED_ANCESTORS_KEY, "12")
-              .put(AdvancedTraceIdRatioBasedSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY, grandParentSpanId)
+              .put(AbstractConsistentSampler.NUMBER_DROPPED_ANCESTORS_KEY, "12")
+              .put(AbstractConsistentSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY, grandParentSpanId)
               .build();
 
       parentContext =
@@ -283,8 +280,6 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
             }
           };
 
-      sampler.setRatio(0);
-
       SamplingResult samplingResult =
           sampler.shouldSample(parentContext, traceId, name, spanKind, attributes, parentLinks);
 
@@ -292,17 +287,16 @@ public class AdvancedTraceIdRatioBasedSamplerTest {
 
       assertEquals(SamplingDecision.DROP, samplingResult.getDecision());
       if (mode.collectAncestorDistance()) {
-        assertEquals(
-            "13", traceState.get(AdvancedTraceIdRatioBasedSampler.NUMBER_DROPPED_ANCESTORS_KEY));
+        assertEquals("13", traceState.get(AbstractConsistentSampler.NUMBER_DROPPED_ANCESTORS_KEY));
       } else {
-        assertNull(traceState.get(AdvancedTraceIdRatioBasedSampler.NUMBER_DROPPED_ANCESTORS_KEY));
+        assertNull(traceState.get(AbstractConsistentSampler.NUMBER_DROPPED_ANCESTORS_KEY));
       }
       if (mode.collectAncestorLink()) {
         assertEquals(
             grandParentSpanId,
-            traceState.get(AdvancedTraceIdRatioBasedSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY));
+            traceState.get(AbstractConsistentSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY));
       } else {
-        assertNull(traceState.get(AdvancedTraceIdRatioBasedSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY));
+        assertNull(traceState.get(AbstractConsistentSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY));
       }
     }
   }

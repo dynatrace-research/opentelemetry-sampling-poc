@@ -58,8 +58,7 @@ public abstract class AbstractConsistentSampler implements Sampler {
   }
 
   // returns a random value from a geometric distribution with a success probability of 0.5 and
-  // minimum value 1 that is
-  // clipped at 62
+  // minimum value 1 that is clipped at 62
   private int generateGeometricRandomValue() {
     int count = 1;
     while (count < 62 && generateRandomBit()) {

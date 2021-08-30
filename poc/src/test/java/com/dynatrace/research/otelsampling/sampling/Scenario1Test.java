@@ -56,8 +56,12 @@ public class Scenario1Test {
     TraceUtil.simulate(
         tree,
         i ->
-            AdvancedTraceIdRatioBasedSampler.create(
-                RecordingMode.PARENT_LINK, (i == 1 || i == 3) ? 0. : 1.),
+            new ConsistentFixedRateSampler((i == 1 || i == 3) ? 0. : 1.) {
+              @Override
+              protected RecordingMode getRecordingMode() {
+                return RecordingMode.PARENT_LINK;
+              }
+            },
         Object::toString,
         collector,
         0);
@@ -111,8 +115,12 @@ public class Scenario1Test {
     TraceUtil.simulate(
         tree,
         i ->
-            AdvancedTraceIdRatioBasedSampler.create(
-                RecordingMode.ANCESTOR_LINK, (i == 1 || i == 3) ? 0. : 1.),
+            new ConsistentFixedRateSampler((i == 1 || i == 3) ? 0. : 1.) {
+              @Override
+              protected RecordingMode getRecordingMode() {
+                return RecordingMode.ANCESTOR_LINK;
+              }
+            },
         Object::toString,
         collector,
         0);
@@ -158,8 +166,12 @@ public class Scenario1Test {
     TraceUtil.simulate(
         tree,
         i ->
-            AdvancedTraceIdRatioBasedSampler.create(
-                RecordingMode.ANCESTOR_LINK_AND_DISTANCE, (i == 1 || i == 3) ? 0. : 1.),
+            new ConsistentFixedRateSampler((i == 1 || i == 3) ? 0. : 1.) {
+              @Override
+              protected RecordingMode getRecordingMode() {
+                return RecordingMode.ANCESTOR_LINK_AND_DISTANCE;
+              }
+            },
         Object::toString,
         collector,
         0);

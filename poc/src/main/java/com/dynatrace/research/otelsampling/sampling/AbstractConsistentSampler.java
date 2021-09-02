@@ -74,7 +74,7 @@ public abstract class AbstractConsistentSampler implements Sampler {
     if (geometricRandomValueAsString != null) {
       int geometricRandomValue =
           Integer.parseInt(geometricRandomValueAsString); // TODO exception handling
-      if (geometricRandomValue >= 1 && geometricRandomValue <= 63) {
+      if (geometricRandomValue >= 1 && geometricRandomValue <= 62) {
         return geometricRandomValue;
       }
     }

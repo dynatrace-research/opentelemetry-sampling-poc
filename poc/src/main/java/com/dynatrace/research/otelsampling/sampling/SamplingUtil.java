@@ -59,7 +59,7 @@ public final class SamplingUtil {
    * @return the new down-sampled collection of span data
    */
   public static Collection<SpanData> downSample(
-      Collection<SpanData> spanData, double sampleRateThreshold) {
+      Collection<SpanData> spanData, double sampleRateThreshold, RecordingMode recordingMode) {
 
     if (spanData.isEmpty()) return Collections.emptyList();
 
@@ -69,12 +69,15 @@ public final class SamplingUtil {
 
     return spanData.stream()
         .filter(predicate)
-        .map(s -> updateAncestorInformation(s, index, predicate))
+        .map(s -> updateAncestorInformation(s, index, predicate, recordingMode))
         .collect(toList());
   }
 
   private static SpanData updateAncestorInformation(
-      SpanData s, Map<String, SpanData> index, Predicate<SpanData> predicate) {
+      SpanData s,
+      Map<String, SpanData> index,
+      Predicate<SpanData> predicate,
+      RecordingMode recordingMode) {
     SpanData newAncestorSpan = index.get(getAncestorSpanId(s));
     int newNumberDroppedAncestors = getNumberDroppedAncestors(s);
     while (newAncestorSpan != null && !predicate.test(newAncestorSpan)) {
@@ -83,8 +86,12 @@ public final class SamplingUtil {
     }
     return SpanDataWithModifiedAncestorData.create(
         s,
-        (newAncestorSpan != null) ? newAncestorSpan.getSpanId() : SpanId.getInvalid(),
-        newNumberDroppedAncestors);
+        (newAncestorSpan != null)
+            ? (recordingMode.collectAncestorLink()
+                ? newAncestorSpan.getSpanId()
+                : s.getParentSpanId())
+            : SpanId.getInvalid(),
+        (recordingMode.collectAncestorDistance()) ? 0 : newNumberDroppedAncestors);
   }
 
   public static int getNumberDroppedAncestors(SpanData spanData) {

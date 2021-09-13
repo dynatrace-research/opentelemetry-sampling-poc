@@ -32,6 +32,7 @@ import static org.junit.Assert.assertFalse;
 
 import com.dynatrace.research.otelsampling.exporter.CollectingSpanExporter;
 import com.dynatrace.research.otelsampling.sampling.ConsistentFixedRateSampler;
+import com.dynatrace.research.otelsampling.sampling.RecordingMode;
 import com.dynatrace.research.otelsampling.simulation.TraceUtil;
 import com.dynatrace.research.otelsampling.tree.Tree;
 import com.dynatrace.research.otelsampling.tree.TreeUtil;
@@ -53,51 +54,58 @@ public class EstimationUtilTest {
     int numNodes = 20;
     Tree<Integer> treeTemplate = new Tree<>(TreeUtil.createBalancedBinaryTree(numNodes), i -> i);
     int numCallTrees = 100000;
+    SplittableRandom random = new SplittableRandom(4L);
 
-    SplittableRandom random = new SplittableRandom(1L);
+    for (RecordingMode recordingMode : RecordingMode.values()) {
 
-    Map<String, StreamingStatistics> groupedObservedStats = new HashMap<>();
-    for (int k = 0; k < numNodes; ++k) {
-      groupedObservedStats.put("span@" + k, new StreamingStatistics());
-    }
+      Map<String, StreamingStatistics> groupedObservedStats = new HashMap<>();
+      for (int k = 0; k < numNodes; ++k) {
+        groupedObservedStats.put("span@" + k, new StreamingStatistics());
+      }
 
-    Map<String, ScalarQuantityExtractor> extractors =
-        groupedObservedStats.keySet().stream()
-            .collect(
-                toMap(
-                    Function.identity(),
-                    name -> countMatchingSpans(s -> name.equals(s.getName()))));
+      Map<String, ScalarQuantityExtractor> extractors =
+          groupedObservedStats.keySet().stream()
+              .collect(
+                  toMap(
+                      Function.identity(),
+                      name -> countMatchingSpans(s -> name.equals(s.getName()))));
 
-    VectorQuantityExtractor<String> extractor = VectorQuantityExtractor.of(extractors);
+      VectorQuantityExtractor<String> extractor = VectorQuantityExtractor.of(extractors);
 
-    for (int callTreeIdx = 0; callTreeIdx < numCallTrees; ++callTreeIdx) {
-      long hashSalt = random.nextLong();
-      double[] samplingRates =
-          DoubleStream.generate(random::nextDouble)
-              .limit(treeTemplate.getTreeStructure().getNumberOfNodes())
-              .toArray();
+      for (int callTreeIdx = 0; callTreeIdx < numCallTrees; ++callTreeIdx) {
+        long hashSalt = random.nextLong();
+        double[] samplingRates =
+            DoubleStream.generate(random::nextDouble)
+                .limit(treeTemplate.getTreeStructure().getNumberOfNodes())
+                .toArray();
 
-      CollectingSpanExporter spanExporter = new CollectingSpanExporter();
-      TraceUtil.simulate(
-          treeTemplate,
-          i ->
-              new ConsistentFixedRateSampler(samplingRates[i]) {
-                @Override
-                protected boolean generateRandomBit() {
-                  return random.nextBoolean();
-                }
-              },
-          Object::toString,
-          spanExporter,
-          hashSalt);
+        CollectingSpanExporter spanExporter = new CollectingSpanExporter();
+        TraceUtil.simulate(
+            treeTemplate,
+            i ->
+                new ConsistentFixedRateSampler(samplingRates[i]) {
+                  @Override
+                  protected boolean generateRandomBit() {
+                    return random.nextBoolean();
+                  }
 
-      EstimationUtil.estimate(extractor, spanExporter.getSpans())
-          .forEach((key, quantity) -> groupedObservedStats.get(key).accept(quantity));
-    }
+                  @Override
+                  protected RecordingMode getRecordingMode() {
+                    return recordingMode;
+                  }
+                },
+            Object::toString,
+            spanExporter,
+            hashSalt);
 
-    for (StreamingStatistics observedStats : groupedObservedStats.values()) {
-      assertFalse(
-          new TTest().tTest(numCallTrees / (double) observedStats.getN(), observedStats, alpha));
+        EstimationUtil.estimate(extractor, spanExporter.getSpans(), recordingMode)
+            .forEach((key, quantity) -> groupedObservedStats.get(key).accept(quantity));
+      }
+
+      for (StreamingStatistics observedStats : groupedObservedStats.values()) {
+        assertFalse(
+            new TTest().tTest(numCallTrees / (double) observedStats.getN(), observedStats, alpha));
+      }
     }
   }
 
@@ -111,41 +119,49 @@ public class EstimationUtilTest {
     int numCallTrees = 100000;
 
     SplittableRandom random = new SplittableRandom(1L);
+    for (RecordingMode recordingMode : RecordingMode.values()) {
+      ParentChildRelationshipCounter parentChildRelationshipCounter =
+          new ParentChildRelationshipCounter(
+              s -> "span@1".equals(s.getName()),
+              s -> ImmutableSet.of("span@15", "span@17", "span@18").contains(s.getName()));
 
-    ParentChildRelationshipCounter parentChildRelationshipCounter =
-        new ParentChildRelationshipCounter(
-            s -> "span@1".equals(s.getName()),
-            s -> ImmutableSet.of("span@15", "span@17", "span@18").contains(s.getName()));
+      StreamingStatistics observedStats = new StreamingStatistics();
 
-    StreamingStatistics observedStats = new StreamingStatistics();
+      for (int callTreeIdx = 0; callTreeIdx < numCallTrees; ++callTreeIdx) {
+        long hashSalt = random.nextLong();
+        double[] samplingRates =
+            DoubleStream.generate(random::nextDouble)
+                .limit(treeTemplate.getTreeStructure().getNumberOfNodes())
+                .toArray();
 
-    for (int callTreeIdx = 0; callTreeIdx < numCallTrees; ++callTreeIdx) {
-      long hashSalt = random.nextLong();
-      double[] samplingRates =
-          DoubleStream.generate(random::nextDouble)
-              .limit(treeTemplate.getTreeStructure().getNumberOfNodes())
-              .toArray();
+        CollectingSpanExporter spanExporter = new CollectingSpanExporter();
+        TraceUtil.simulate(
+            treeTemplate,
+            i ->
+                new ConsistentFixedRateSampler(samplingRates[i]) {
+                  @Override
+                  protected boolean generateRandomBit() {
+                    return random.nextBoolean();
+                  }
 
-      CollectingSpanExporter spanExporter = new CollectingSpanExporter();
-      TraceUtil.simulate(
-          treeTemplate,
-          i ->
-              new ConsistentFixedRateSampler(samplingRates[i]) {
-                @Override
-                protected boolean generateRandomBit() {
-                  return random.nextBoolean();
-                }
-              },
-          Object::toString,
-          spanExporter,
-          hashSalt);
+                  @Override
+                  protected RecordingMode getRecordingMode() {
+                    return recordingMode;
+                  }
+                },
+            Object::toString,
+            spanExporter,
+            hashSalt);
 
-      observedStats.accept(
-          EstimationUtil.estimate(parentChildRelationshipCounter, spanExporter.getSpans()));
+        observedStats.accept(
+            EstimationUtil.estimate(
+                parentChildRelationshipCounter, spanExporter.getSpans(), recordingMode));
+      }
+
+      assertFalse(
+          new TTest()
+              .tTest(3 * numCallTrees / (double) observedStats.getN(), observedStats, alpha));
     }
-
-    assertFalse(
-        new TTest().tTest(3 * numCallTrees / (double) observedStats.getN(), observedStats, alpha));
   }
 
   @Test
@@ -159,41 +175,52 @@ public class EstimationUtilTest {
 
     SplittableRandom random = new SplittableRandom(2L);
 
-    ParentChildRelationshipCounter parentChildRelationshipCounter =
-        new ParentChildRelationshipCounter(
-            s -> "span@1".equals(s.getName()),
-            s -> ImmutableSet.of("span@15", "span@17", "span@18").contains(s.getName()));
+    for (RecordingMode recordingMode : RecordingMode.values()) {
 
-    StreamingStatistics observedStats = new StreamingStatistics();
+      ParentChildRelationshipCounter parentChildRelationshipCounter =
+          new ParentChildRelationshipCounter(
+              s -> "span@1".equals(s.getName()),
+              s -> ImmutableSet.of("span@15", "span@17", "span@18").contains(s.getName()));
 
-    for (int callTreeIdx = 0; callTreeIdx < numCallTrees; ++callTreeIdx) {
-      long hashSalt = random.nextLong();
-      double[] samplingRates =
-          DoubleStream.generate(random::nextDouble)
-              .limit(treeTemplate.getTreeStructure().getNumberOfNodes())
-              .toArray();
+      StreamingStatistics observedStats = new StreamingStatistics();
 
-      CollectingSpanExporter spanExporter = new CollectingSpanExporter();
-      TraceUtil.simulate(
-          treeTemplate,
-          i ->
-              new ConsistentFixedRateSampler(samplingRates[i]) {
-                @Override
-                protected boolean generateRandomBit() {
-                  return random.nextBoolean();
-                }
-              },
-          Object::toString,
-          spanExporter,
-          hashSalt);
+      for (int callTreeIdx = 0; callTreeIdx < numCallTrees; ++callTreeIdx) {
+        long hashSalt = random.nextLong();
+        double[] samplingRates =
+            DoubleStream.generate(random::nextDouble)
+                .limit(treeTemplate.getTreeStructure().getNumberOfNodes())
+                .toArray();
 
-      observedStats.accept(
-          EstimationUtil.estimate(
-              x -> 5. - parentChildRelationshipCounter.extract(x), spanExporter.getSpans()));
+        CollectingSpanExporter spanExporter = new CollectingSpanExporter();
+        TraceUtil.simulate(
+            treeTemplate,
+            i ->
+                new ConsistentFixedRateSampler(samplingRates[i]) {
+                  @Override
+                  protected boolean generateRandomBit() {
+                    return random.nextBoolean();
+                  }
+
+                  @Override
+                  protected RecordingMode getRecordingMode() {
+                    return recordingMode;
+                  }
+                },
+            Object::toString,
+            spanExporter,
+            hashSalt);
+
+        observedStats.accept(
+            EstimationUtil.estimate(
+                x -> 5. - parentChildRelationshipCounter.extract(x),
+                spanExporter.getSpans(),
+                recordingMode));
+      }
+
+      assertFalse(
+          new TTest()
+              .tTest(
+                  (5. - 3) * numCallTrees / (double) observedStats.getN(), observedStats, alpha));
     }
-
-    assertFalse(
-        new TTest()
-            .tTest((5. - 3) * numCallTrees / (double) observedStats.getN(), observedStats, alpha));
   }
 }

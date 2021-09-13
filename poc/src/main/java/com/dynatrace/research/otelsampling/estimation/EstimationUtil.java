@@ -28,6 +28,7 @@ package com.dynatrace.research.otelsampling.estimation;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import com.dynatrace.research.otelsampling.sampling.RecordingMode;
 import com.dynatrace.research.otelsampling.sampling.SamplingUtil;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import java.util.Collection;
@@ -43,16 +44,21 @@ public final class EstimationUtil {
   private static final Double ZERO = 0.;
 
   public static double estimate(
-      ScalarQuantityExtractor scalarQuantityExtractor, Collection<SpanData> spanData) {
+      ScalarQuantityExtractor scalarQuantityExtractor,
+      Collection<SpanData> spanData,
+      RecordingMode recordingMode) {
     return estimate(
             VectorQuantityExtractor.of(
                 Collections.singletonMap(DUMMY_KEY, scalarQuantityExtractor)),
-            spanData)
+            spanData,
+            recordingMode)
         .getOrDefault(DUMMY_KEY, ZERO);
   }
 
   public static <T> Map<T, Double> estimate(
-      VectorQuantityExtractor<T> vectorQuantityExtractor, Collection<SpanData> spanData) {
+      VectorQuantityExtractor<T> vectorQuantityExtractor,
+      Collection<SpanData> spanData,
+      RecordingMode recordingMode) {
 
     if (spanData.isEmpty()) return Collections.emptyMap();
 
@@ -68,7 +74,7 @@ public final class EstimationUtil {
           spanData.stream().mapToDouble(SamplingUtil::getSamplingRatio).min().getAsDouble();
       final double vReciprocal = 1. / v;
 
-      spanData = SamplingUtil.downSample(spanData, v);
+      spanData = SamplingUtil.downSample(spanData, v, recordingMode);
 
       if (spanData.isEmpty()) {
         qPrev.forEach((key, qPrevElement) -> q.merge(key, qPrevElement * vReciprocal, Double::sum));

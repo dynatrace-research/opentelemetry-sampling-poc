@@ -44,7 +44,7 @@ public class ConsistentParentRateSampler extends AbstractConsistentSampler {
       List<LinkData> parentLinks) {
     int parentSamplingRateExponent = getParentSamplingRateExponentFromParentContext(parentContext);
     if (parentSamplingRateExponent == SAMPLING_UNKNOWN_RATE_EXPONENT) {
-      return 1;
+      return 0;
     } else {
       return parentSamplingRateExponent;
     }

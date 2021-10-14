@@ -41,11 +41,11 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public abstract class AbstractConsistentSampler implements Sampler {
 
-  public static final int SAMPLING_UNKNOWN_RATE_EXPONENT = 0;
+  public static final int SAMPLING_UNKNOWN_RATE_EXPONENT = -1;
 
   public static final String SAMPLING_GEOMETRIC_RANDOM_VALUE_KEY =
       "sampling-geometric-random-value";
-  public static final String SAMPLING_RATE_EXPONENT_KEY = "sampling-rate-exponent";
+  public static final String SAMPLING_RATE_EXPONENT_KEY = "parent-sampling-rate-exponent";
   public static final String NUMBER_DROPPED_ANCESTORS_KEY = "number-dropped-ancestors";
   public static final String SAMPLED_ANCESTOR_SPAN_ID_KEY = "sampled-ancestor-span-id";
 
@@ -58,9 +58,9 @@ public abstract class AbstractConsistentSampler implements Sampler {
   }
 
   // returns a random value from a geometric distribution with a success probability of 0.5 and
-  // minimum value 1 that is clipped at 62
+  // minimum value 0 that is clipped at 62
   private int generateGeometricRandomValue() {
-    int count = 1;
+    int count = 0;
     while (count < 62 && generateRandomBit()) {
       count += 1;
     }
@@ -74,7 +74,7 @@ public abstract class AbstractConsistentSampler implements Sampler {
     if (geometricRandomValueAsString != null) {
       int geometricRandomValue =
           Integer.parseInt(geometricRandomValueAsString); // TODO exception handling
-      if (geometricRandomValue >= 1 && geometricRandomValue <= 62) {
+      if (geometricRandomValue >= 0 && geometricRandomValue <= 62) {
         return geometricRandomValue;
       }
     }
@@ -83,11 +83,11 @@ public abstract class AbstractConsistentSampler implements Sampler {
 
   protected int getParentSamplingRateExponentFromParentContext(Context parentContext) {
     Span parentSpan = Span.fromContext(parentContext);
-    String pow2ParentSaplingRateAsString =
+    String pow2ParentSamplingRateAsString =
         parentSpan.getSpanContext().getTraceState().get(SAMPLING_RATE_EXPONENT_KEY);
-    if (pow2ParentSaplingRateAsString != null) {
+    if (pow2ParentSamplingRateAsString != null) {
       int parentSamplingRateExponent =
-          Integer.parseInt(pow2ParentSaplingRateAsString); // TODO exception handling
+          Integer.parseInt(pow2ParentSamplingRateAsString); // TODO exception handling
       if (parentSamplingRateExponent >= 0 && parentSamplingRateExponent <= 63) {
         return parentSamplingRateExponent;
       }
@@ -188,13 +188,13 @@ public abstract class AbstractConsistentSampler implements Sampler {
     }
   }
 
-  // must return a value in the range [1, 63]
-  //  1 means sampling rate = 1
-  //  2 means sampling rate = 1/2
-  //  3 means sampling rate = 1/4
+  // must return a value in the range [0, 63]
+  //  0 means sampling rate = 1
+  //  1 means sampling rate = 1/2
+  //  2 means sampling rate = 1/4
   //  ...
-  // 61 means sampling rate = 1/2^60
-  // 62 means sampling rate = 1/2^61
+  // 61 means sampling rate = 1/2^61
+  // 62 means sampling rate = 1/2^62
   // 63 means sampling rate = 0
   protected abstract int getSamplingRateExponent(
       Context parentContext,
@@ -205,13 +205,13 @@ public abstract class AbstractConsistentSampler implements Sampler {
       List<LinkData> parentLinks);
 
   protected static double getSamplingRate(int samplingRateExponent) {
-    if (samplingRateExponent < 1 || samplingRateExponent > 63) {
-      throw new IllegalArgumentException("Sampling rate exponent must be in the range [1, 63]!");
+    if (samplingRateExponent < 0 || samplingRateExponent > 63) {
+      throw new IllegalArgumentException("Sampling rate exponent must be in the range [0, 63]!");
     }
     if (samplingRateExponent == 63) {
       return 0.;
     } else {
-      return 1. / (1L << (samplingRateExponent - 1));
+      return 1. / (1L << samplingRateExponent);
     }
   }
 }

@@ -129,7 +129,7 @@ public class ConsistentFixedRateSamplerTest {
 
       assertEquals(SamplingDecision.RECORD_AND_SAMPLE, samplingResult.getDecision());
       assertEquals(
-          1,
+          0,
           Integer.parseInt(traceState.get(AbstractConsistentSampler.SAMPLING_RATE_EXPONENT_KEY)));
       assertNull(traceState.get(AbstractConsistentSampler.NUMBER_DROPPED_ANCESTORS_KEY));
       assertNull(
@@ -225,7 +225,7 @@ public class ConsistentFixedRateSamplerTest {
 
       assertEquals(SamplingDecision.RECORD_AND_SAMPLE, samplingResult.getDecision());
       assertEquals(
-          1,
+          0,
           Integer.parseInt(traceState.get(AbstractConsistentSampler.SAMPLING_RATE_EXPONENT_KEY)));
       assertNull(traceState.get(AbstractConsistentSampler.NUMBER_DROPPED_ANCESTORS_KEY));
       assertNull(traceState.get(AbstractConsistentSampler.SAMPLED_ANCESTOR_SPAN_ID_KEY));

@@ -45,7 +45,7 @@ public class ConsistentFixedRateSampler extends AbstractConsistentSampler {
     }
     this.samplingRate = samplingRate;
 
-    int l = 1;
+    int l = 0;
     while (l < 63 && getSamplingRate(l + 1) >= samplingRate) {
       l += 1;
     }

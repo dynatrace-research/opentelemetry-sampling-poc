@@ -128,7 +128,7 @@ public final class SamplingUtil {
       int parentSamplingRateExponent =
           Integer.parseInt(pow2ParentSaplingRateAsString); // TODO exception handling
       if (parentSamplingRateExponent >= 0 && parentSamplingRateExponent <= 63) {
-        return 1. / (1 << (parentSamplingRateExponent - 1));
+        return 1. / (1 << (parentSamplingRateExponent));
       }
     }
     return Double.NaN;

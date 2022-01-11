@@ -8,3 +8,7 @@ This repository contains proofs of concept related to span sampling and ideas pr
   * [ConsistentFixedRateSampler.java](https://github.com/dynatrace-research/opentelemetry-sampling-poc/blob/master/poc/src/main/java/com/dynatrace/research/otelsampling/sampling/ConsistentFixedRateSampler.java): This sampler uses a fixed sampling rate. If the sampling rate is not exactly a power of 1/2 it randomly switches between the neighboring power of 1/2 sampling rates such that the effective sampling rate matches the configured one as proposed in the paper.
 * [EstimationUtil.java](https://github.com/dynatrace-research/opentelemetry-sampling-poc/blob/master/poc/src/main/java/com/dynatrace/research/otelsampling/estimation/EstimationUtil.java) demonstrates the estimation algorithm for partially sampled traces as described in the paper.
 * [ReservoirSampler.java](https://github.com/dynatrace-research/opentelemetry-sampling-poc/blob/master/poc/src/main/java/com/dynatrace/research/otelsampling/sampling/ReservoirSampler.java) demonstrates consistent sampling of spans with a fixed size reservoir (buffer) where the individual span sampling rates are restricted to a predefined discrete set.
+
+
+Please also see:
+https://github.com/dynatrace-oss-contrib/opentelemetry-java/tree/consistent-sampling

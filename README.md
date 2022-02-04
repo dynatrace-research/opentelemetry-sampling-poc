@@ -11,4 +11,4 @@ This repository contains proofs of concept related to span sampling and ideas pr
 
 
 Please also see:
-https://github.com/dynatrace-oss-contrib/opentelemetry-java/tree/consistent-sampling
+https://github.com/dynatrace-oss-contrib/opentelemetry-java-contrib/tree/consistent-sampling

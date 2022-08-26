@@ -10,5 +10,5 @@ This repository contains proofs of concept related to span sampling and ideas pr
 * [ReservoirSampler.java](https://github.com/dynatrace-research/opentelemetry-sampling-poc/blob/master/poc/src/main/java/com/dynatrace/research/otelsampling/sampling/ReservoirSampler.java) demonstrates consistent sampling of spans with a fixed size reservoir (buffer) where the individual span sampling rates are restricted to a predefined discrete set.
 
 
-Please also see:
-https://github.com/dynatrace-oss-contrib/opentelemetry-java-contrib/tree/consistent-sampling
+In the meantime, these concepts are already integrated in 
+https://github.com/dynatrace-oss-contrib/opentelemetry-java-contrib.
